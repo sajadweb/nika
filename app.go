@@ -25,10 +25,18 @@ func (a *App) LoadModule(module Module) {
 		a.LoadModule(subModule)
 	}
 	for _, provider := range module.Providers() {
-		provType := reflect.TypeOf(provider)
-		a.container[provType] = provider
+		provVal := reflect.ValueOf(provider)
+		var instance interface{}
+		if provVal.Kind() == reflect.Func {
+			instance = a.invokeConstructor(provider)
+		} else {
+			instance = provider
+		}
+
+		provType := reflect.TypeOf(instance)
+		a.container[provType] = instance
 		if provType.Kind() == reflect.Ptr {
-			a.container[provType.Elem()] = provider
+			a.container[provType.Elem()] = instance
 		}
 	}
 	for _, ctrl := range module.Controllers() {
@@ -145,9 +153,9 @@ func (a *App) RegisterControllers(controllers ...interface{}) {
 }
 
 func (a *App) RegisterSingleton(instance interface{}) {
-    provType := reflect.TypeOf(instance)
-    a.container[provType] = instance
-    if provType.Kind() == reflect.Ptr {
-        a.container[provType.Elem()] = instance
-    }
+	provType := reflect.TypeOf(instance)
+	a.container[provType] = instance
+	if provType.Kind() == reflect.Ptr {
+		a.container[provType.Elem()] = instance
+	}
 }
