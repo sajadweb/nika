@@ -1,12 +1,14 @@
 package response
 
 import (
+	"net/http"
+
 	"github.com/gin-gonic/gin"
 )
 
 // ErrorDetail detailed error structure for the frontend
 type ErrorDetail struct {
-	Code    string      `json:"code"`              // error code (e.g.: VALIDATION_ERROR, USER_NOT_FOUND)
+	Code    int      `json:"code"`              // error code (e.g.: VALIDATION_ERROR, USER_NOT_FOUND)
 	Message string      `json:"message"`           // error message
 	Details interface{} `json:"details,omitempty"` // details (populated only for validation errors)
 }
@@ -40,7 +42,7 @@ func BooleanSuccess(message string) BoolResponse {
 }
 
 // Error constructs a new error Response.
-func NewError(code string, message string, details interface{}) Error {
+func NewError(code int, message string, details interface{}) Error {
 	return Error{
 		Success: false,
 		Error: &ErrorDetail{
@@ -53,20 +55,26 @@ func NewError(code string, message string, details interface{}) Error {
 
 // JSONSuccess writes a successful JSON response to the gin context with the provided status code, data and message.
 func OkByMsg(c *gin.Context, message string) {
-	c.JSON(200, BooleanSuccess(message))
+	c.JSON(http.StatusOK, BooleanSuccess(message))
 }
 func Ok(c *gin.Context, data interface{}) {
-	c.JSON(200, data)
+	c.JSON(http.StatusOK, data)
 }
 func Create(c *gin.Context, data interface{}) {
-	c.JSON(201, data)
+	c.JSON(http.StatusCreated, data)
 }
-func JSONError(c *gin.Context, statusCode int, code string, message string, details interface{}) {
-	c.JSON(statusCode, NewError(code, message, details))
+func Update(c *gin.Context, data interface{}) {
+	c.JSON(http.StatusAccepted, data)
 }
-func BadRequest(c *gin.Context, code string, message string, details interface{}) {
-	c.JSON(400, NewError(code, message, details))
+func JSONError(c *gin.Context, statusCode int, message string, details interface{}) {
+	c.JSON(statusCode, NewError(statusCode, message, details))
+}
+func BadRequest(c *gin.Context, message string, details interface{}) {
+	c.JSON(http.StatusBadRequest, NewError(http.StatusBadRequest, message, details))
+}
+func UnprocessableEntity(c *gin.Context, message string, details interface{}) {
+	c.JSON(http.StatusUnprocessableEntity, NewError(http.StatusUnprocessableEntity, message, details))
 }
 func NotFoundRequest(c *gin.Context, code string, message string, details interface{}) {
-	c.JSON(404, NewError(code, message, details))
+	c.JSON(http.StatusNotFound, NewError(http.StatusNotFound, message, details))
 }
