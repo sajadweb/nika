@@ -2,7 +2,10 @@ module github.com/sajadweb/nika
 
 go 1.25.0
 
-require github.com/gin-gonic/gin v1.12.0
+require (
+	github.com/gin-gonic/gin v1.12.0
+	github.com/ulule/limiter/v3 v3.11.2
+)
 
 require (
 	github.com/KyleBanks/depth v1.2.1 // indirect
@@ -18,6 +21,7 @@ require (
 	github.com/klauspost/compress v1.17.6 // indirect
 	github.com/mailru/easyjson v0.7.6 // indirect
 	github.com/montanaflynn/stats v0.7.1 // indirect
+	github.com/pkg/errors v0.9.1 // indirect
 	github.com/swaggo/swag v1.8.12 // indirect
 	github.com/xdg-go/pbkdf2 v1.0.0 // indirect
 	github.com/xdg-go/scram v1.2.0 // indirect
@@ -38,7 +42,7 @@ require (
 	github.com/gin-contrib/sse v1.1.0 // indirect
 	github.com/go-playground/locales v0.14.1 // indirect
 	github.com/go-playground/universal-translator v0.18.1 // indirect
-	github.com/go-playground/validator/v10 v10.30.1 // indirect
+	github.com/go-playground/validator/v10 v10.30.1
 	github.com/goccy/go-json v0.10.5 // indirect
 	github.com/goccy/go-yaml v1.19.2 // indirect
 	github.com/joho/godotenv v1.5.1

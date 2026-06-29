@@ -1,140 +1,96 @@
 # Rate Limiting
 
-> **Coming Soon** — Built-in rate limiting is not yet implemented.
-
 Rate limiting protects your API from abuse by limiting the number of requests a client can make in a given time period.
 
-## Current Approach
+Nika provides rate limiting through the `common/ratelimit` package. It is built on top of `github.com/ulule/limiter/v3` and supports in-memory and Redis-backed stores.
 
-Use `gin-contrib/limiter` or implement custom middleware:
+## Setup
 
-```bash
-go get github.com/ulule/limiter/v3
-go get github.com/ulule/limiter/v3/drivers/middleware/gin
-go get github.com/ulule/limiter/v3/drivers/store/redis
-```
+Pass the limiter parameters when calling `Setup()`:
 
 ```go
 import (
-    "github.com/ulule/limiter/v3"
-    "github.com/ulule/limiter/v3/drivers/middleware/gin"
-    "github.com/ulule/limiter/v3/drivers/store/redis"
+    "time"
+
+    "github.com/sajadweb/nika"
+    "github.com/sajadweb/nika/common/ratelimit"
 )
 
 func main() {
     app := nika.NewApp()
 
-    // Define rate limit: 100 requests per minute per IP
-    rate, _ := limiter.NewRateFromFormatted("100-M")
-
-    // Create store (Redis-backed)
-    store, _ := redis.NewStoreWithOptions(
-        redisClient,
-        limiter.StoreOptions{
-            Prefix: "nika_ratelimit",
-        },
-    )
-
-    // Create middleware
-    middleware := gin.NewMiddleware(limiter.New(store, rate))
-    app.Use(middleware)
+    _, err := ratelimit.Setup(app, ratelimit.Config{
+        Requests: 100,
+        Window:   time.Minute,
+        Driver:   ratelimit.DriverMemory,
+        Message:  "Too many requests",
+    })
+    if err != nil {
+        panic(err)
+    }
 
     app.LoadModule(rootModule)
     app.Listen(":3000")
 }
 ```
 
-### Simple In-Memory Rate Limiter
+`Setup()` registers the limiter in the DI container and installs the middleware globally.
+
+## Options
+
+| Option | Description |
+|--------|-------------|
+| `Requests` | Maximum number of requests allowed in the window |
+| `Window` | Time window, such as `time.Minute` |
+| `Driver` | `ratelimit.DriverMemory` or `ratelimit.DriverRedis` |
+| `Prefix` | Store key prefix |
+| `StatusCode` | Response status when blocked, defaults to `429` |
+| `Message` | Response message when blocked |
+| `CleanupInterval` | How often expired visitors are removed |
+| `KeyFunc` | Optional function for identifying clients |
+| `Skip` | Optional function for bypassing the limiter |
+| `RedisClient` | Redis client for the Redis driver |
+| `Store` | Custom `limiter.Store` implementation |
+| `LimiterOptions` | Advanced options passed to the underlying limiter |
+
+## Custom Key
+
+By default, clients are identified by IP address. You can provide a custom `KeyFunc`:
 
 ```go
-package middleware
+ratelimit.Setup(app, ratelimit.Config{
+    Requests: 10,
+    Window:   time.Minute,
+    KeyFunc: func(c *gin.Context) string {
+        return c.GetHeader("X-API-Key")
+    },
+})
+```
 
-import (
-    "net/http"
-    "sync"
-    "time"
-    "github.com/gin-gonic/gin"
-)
+## Redis Store
 
-type visitor struct {
-    count    int
-    lastSeen time.Time
-}
+For multi-instance deployments, use Redis so all app instances share the same limits:
 
-type RateLimiter struct {
-    mu       sync.Mutex
-    visitors map[string]*visitor
-    rate     int           // max requests
-    window   time.Duration // time window
-}
+```go
+redisClient := redis.NewClient(&redis.Options{
+    Addr: "localhost:6379",
+})
 
-func NewRateLimiter(rate int, window time.Duration) *RateLimiter {
-    rl := &RateLimiter{
-        visitors: make(map[string]*visitor),
-        rate:     rate,
-        window:   window,
-    }
-    // Cleanup old entries
-    go rl.cleanup()
-    return rl
-}
-
-func (rl *RateLimiter) Limit() gin.HandlerFunc {
-    return func(c *gin.Context) {
-        ip := c.ClientIP()
-
-        rl.mu.Lock()
-        v, exists := rl.visitors[ip]
-        if !exists {
-            rl.visitors[ip] = &visitor{count: 1, lastSeen: time.Now()}
-            rl.mu.Unlock()
-            c.Next()
-            return
-        }
-
-        if time.Since(v.lastSeen) > rl.window {
-            v.count = 1
-            v.lastSeen = time.Now()
-        } else {
-            v.count++
-        }
-
-        if v.count > rl.rate {
-            rl.mu.Unlock()
-            c.AbortWithStatusJSON(http.StatusTooManyRequests, gin.H{
-                "error": "Rate limit exceeded",
-            })
-            return
-        }
-
-        rl.mu.Unlock()
-        c.Next()
-    }
-}
-
-func (rl *RateLimiter) cleanup() {
-    for {
-        time.Sleep(time.Minute)
-        rl.mu.Lock()
-        for ip, v := range rl.visitors {
-            if time.Since(v.lastSeen) > rl.window*2 {
-                delete(rl.visitors, ip)
-            }
-        }
-        rl.mu.Unlock()
-    }
-}
-
-// Usage
-app.Use(NewRateLimiter(100, time.Minute).Limit())
+ratelimit.Setup(app, ratelimit.Config{
+    Requests:    100,
+    Window:      time.Minute,
+    Driver:      ratelimit.DriverRedis,
+    RedisClient: redisClient,
+    Prefix:      "nika_ratelimit",
+})
 ```
 
 ## Status
 
 | Feature | Status |
 |---------|--------|
-| In-memory rate limiting | ⏳ Planned |
-| Redis-backed rate limiting | ⏳ Planned |
-| Per-route rate limits | ⏳ Planned |
-| Rate limit headers | ⏳ Planned |
-| Built-in rate limiter | ⏳ Planned |
+| In-memory rate limiting | ✅ Implemented |
+| Redis-backed rate limiting | ✅ Implemented |
+| Per-route rate limits | ✅ Use `Skip` or `Middleware()` directly |
+| Rate limit headers | ✅ Implemented |
+| Built-in rate limiter | ✅ Implemented |
